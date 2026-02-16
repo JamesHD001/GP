@@ -1,0 +1,143 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function userRole(uid) {
+      return userDoc(uid).exists() ? userDoc(uid).data.role : null;
+    }
+
+    function myRole() {
+      return isSignedIn() ? userRole(request.auth.uid) : null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myRole() == 'admin';
+    }
+
+    function isInstructor() {
+      return isSignedIn() && myRole() == 'instructor';
+    }
+
+    function isLeader() {
+      return isSignedIn() && myRole() == 'leader';
+    }
+
+    function assignedClassesFor(uid) {
+      return userDoc(uid).exists() && userDoc(uid).data.assignedClasses != null
+        ? userDoc(uid).data.assignedClasses
+        : [];
+    }
+
+    function isAssignedInstructorForClass(uid, classId) {
+      return isSignedIn() && assignedClassesFor(uid).size() > 0 && classId in assignedClassesFor(uid);
+    }
+
+    // users collection
+    match /users/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+
+      allow create: if (
+        isAdmin() // admin may create any user
+        || (
+          isSignedIn()
+          && request.auth.uid == userId // user may create their own profile
+          && request.resource.data.uid == userId
+          && (request.resource.data.role == 'leader' || !('role' in request.resource.data)) // self-creation cannot assign elevated roles
+        )
+      );
+
+      allow update: if (
+        isAdmin() // admin may update any user (including role)
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.uid == userId
+          && // users cannot change their own role
+          (request.resource.data.role == resource.data.role || !('role' in request.resource.data))
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // classes collection
+    match /classes/{classId} {
+      allow read: if isAdmin() || isLeader() || (isInstructor() && isAssignedInstructorForClass(request.auth.uid, classId));
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // attendanceSessions collection
+    match /attendanceSessions/{sessionId} {
+      allow read: if isAdmin() || isLeader() || (isInstructor() && (
+        // instructor can read sessions for their assigned classes
+        (resource.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow create: if isAdmin() || (isInstructor() && (
+        // instructor can create sessions only for classes they are assigned to
+        (request.resource.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow update: if isAdmin() || (isInstructor() && (
+        // instructor can update sessions only for their assigned classes
+        (resource.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow delete: if isAdmin();
+    }
+
+    // attendanceRecords collection
+    match /attendanceRecords/{recordId} {
+      allow read: if isAdmin() || isLeader() || (isInstructor() && (
+        // instructor may read records for sessions of their assigned classes
+        let session = get(/databases/$(database)/documents/attendanceSessions/$(resource.data.sessionId));
+        session.exists() && (session.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow create: if isAdmin() || (isInstructor() && (
+        // instructor may create records only for sessions belonging to their assigned classes
+        let session = get(/databases/$(database)/documents/attendanceSessions/$(request.resource.data.sessionId));
+        session.exists() && (session.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow update: if isAdmin() || (isInstructor() && (
+        // instructor may update records if the session belongs to their assigned classes
+        let session = get(/databases/$(database)/documents/attendanceSessions/$(resource.data.sessionId));
+        session.exists() && (session.data.classId in assignedClassesFor(request.auth.uid))
+      ));
+
+      allow delete: if isAdmin();
+    }
+
+    // Analytics collection (server-side aggregated data)
+    match /analytics/{document=**} {
+      // Cloud Functions (admin SDK) write to analytics — allow via service account
+      // Authenticated users can read based on role
+      allow read: if isAdmin() || isLeader();
+      allow read: if isInstructor(); // Instructors can view analytics (scoped to their classes in service layer)
+      allow write: if false; // Only Cloud Functions via admin SDK
+    }
+
+    // Report snapshots (export history)
+    match /reports/{document=**} {
+      // Admin can read/write all report snapshots
+      allow read, write: if isAdmin();
+      // Leader can read/write (own permission level)
+      allow read, write: if isLeader();
+      // Instructor can read/write (own permission level)
+      allow read, write: if isInstructor();
+    }
+
+    // Default: no access
+  }
+}
