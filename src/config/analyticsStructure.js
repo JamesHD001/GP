@@ -41,9 +41,8 @@
  *         excused: 1
  *       }
  *     },
- *     "classId-2": { /* ... */ },
- *     // ...
- *   },
+ *     "classId-2": { /* ... */ ,
+ *     // ...},
  *   
  *   lastUpdated; Timestamp,                         // Server timestamp of last update
  *   totalRecordsProcessed; 148                      // For audit/debugging

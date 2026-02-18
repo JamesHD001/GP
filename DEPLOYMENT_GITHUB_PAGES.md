@@ -81,6 +81,7 @@ git push origin main
 ```
 
 **GitHub Actions will:**
+
 1. Checkout code
 2. Install dependencies
 3. Build production app (`npm run build`)
