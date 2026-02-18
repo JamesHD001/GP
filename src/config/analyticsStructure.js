@@ -45,8 +45,8 @@
  *     // ...
  *   },
  *   
- *   lastUpdated: Timestamp,                         // Server timestamp of last update
- *   totalRecordsProcessed: 148                      // For audit/debugging
+ *   lastUpdated; Timestamp,                         // Server timestamp of last update
+ *   totalRecordsProcessed; 148                      // For audit/debugging
  * }
  */
 

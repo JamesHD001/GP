@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>YSA GP Attendance</title>
+    <script type="text/javascript">
+      /*
+       * Single Page App redirect for GitHub Pages.
+       *
+       * Redirects any non-existent path to index.html with the original path
+       * preserved in the URL hash. React Router will handle the navigation.
+       *
+       * This file is served by GitHub Pages when a route is not found.
+       */
+      var pathSegmentsToKeep = 1;
+
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          '/GP' +
+          '/?/' +
+          l.pathname
+            .slice(1)
+            .split('/')
+            .slice(pathSegmentsToKeep)
+            .join('/') +
+          (l.search ? '&' + l.search.slice(1) : '') +
+          l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
